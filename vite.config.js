@@ -6,4 +6,13 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   base: '/Movie-TierList/',
   plugins: [react(), tailwindcss()],
+  server: {
+    proxy: {
+      '/api/serpapi': {
+        target: 'https://serpapi.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/serpapi/, ''),
+      },
+    },
+  },
 })
