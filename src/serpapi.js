@@ -1,6 +1,4 @@
-const SERPAPI_BASE_URL = import.meta.env.DEV
-  ? '/api/serpapi/search.json'
-  : 'https://serpapi.com/search.json'
+const PROXY_URL = 'https://gh-pages-proxy.mpro21548.workers.dev'
 
 /**
  * Search for images via SerpApi (Google Images engine).
@@ -19,7 +17,11 @@ export async function searchImages(query) {
     api_key: apiKey,
   })
 
-  const response = await fetch(`${SERPAPI_BASE_URL}?${params}`)
+  const requestUrl = import.meta.env.DEV
+    ? `/api/serpapi/search.json?${params}`
+    : `${PROXY_URL}?url=${encodeURIComponent(`https://serpapi.com/search.json?${params}`)}`
+
+  const response = await fetch(requestUrl)
   if (!response.ok) {
     throw new Error(`SerpApi request failed: ${response.status}`)
   }
