@@ -27,6 +27,7 @@ function TierListPage({ user, onLogout }) {
   const [loading, setLoading] = useState(true)
   const [showMinus, setShowMinus] = useState(true)
   const [dragged, setDragged] = useState(null)
+  const [dropTarget, setDropTarget] = useState(null) // { zone, itemId, position: 'before' | 'after' }
   const [expandedId, setExpandedId] = useState(null)
 
   const [movieName, setMovieName] = useState('')
@@ -103,19 +104,62 @@ function TierListPage({ user, onLogout }) {
     setDragged({ item, fromZone })
   }
 
+  const handleDragEnd = () => {
+    setDragged(null)
+    setDropTarget(null)
+  }
+
   const handleDragOver = (e) => {
     e.preventDefault()
   }
 
-  const moveItem = (itemId, fromZone, toZone) => {
-    if (fromZone === toZone) return
+  const handleItemDragOver = (e, targetItem, targetZone) => {
+    e.preventDefault()
+    if (!dragged || dragged.item.id === targetItem.id || targetZone === 'remained') {
+      if (dropTarget) setDropTarget(null)
+      return
+    }
+    e.stopPropagation()
+
+    const rect = e.currentTarget.getBoundingClientRect()
+    const midpoint = rect.left + rect.width / 2
+    const position = e.clientX < midpoint ? 'before' : 'after'
+
+    if (
+      dropTarget?.zone !== targetZone ||
+      dropTarget?.itemId !== targetItem.id ||
+      dropTarget?.position !== position
+    ) {
+      setDropTarget({ zone: targetZone, itemId: targetItem.id, position })
+    }
+  }
+
+  const moveItem = (itemId, fromZone, toZone, targetItemId = null, position = 'after') => {
+    if (fromZone === toZone && !targetItemId) return
+    if (itemId === targetItemId) return
 
     const nextTiers = { ...tiers }
+
     if (fromZone !== 'remained') {
       nextTiers[fromZone] = nextTiers[fromZone].filter((id) => id !== itemId)
     }
+
     if (toZone !== 'remained') {
-      nextTiers[toZone] = [...nextTiers[toZone], itemId]
+      const targetList = [...nextTiers[toZone]]
+
+      if (targetItemId) {
+        const targetIndex = targetList.indexOf(targetItemId)
+        if (targetIndex !== -1) {
+          const insertIndex = position === 'before' ? targetIndex : targetIndex + 1
+          targetList.splice(insertIndex, 0, itemId)
+        } else {
+          targetList.push(itemId)
+        }
+      } else {
+        targetList.push(itemId)
+      }
+
+      nextTiers[toZone] = targetList
     }
 
     setTiers(nextTiers)
@@ -125,10 +169,24 @@ function TierListPage({ user, onLogout }) {
     }
   }
 
-  const handleDrop = (toZone) => {
+  const handleDropOnZone = (toZone) => {
     if (!dragged) return
     moveItem(dragged.item.id, dragged.fromZone, toZone)
     setDragged(null)
+    setDropTarget(null)
+  }
+
+  const handleDropOnItem = (e, targetItem, toZone) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!dragged) return
+
+    const position =
+      dropTarget?.itemId === targetItem.id ? dropTarget.position : 'after'
+
+    moveItem(dragged.item.id, dragged.fromZone, toZone, targetItem.id, position)
+    setDragged(null)
+    setDropTarget(null)
   }
 
   const handleAddMovie = async (e) => {
@@ -172,37 +230,62 @@ function TierListPage({ user, onLogout }) {
     }
   }
 
-  const renderItem = (item, zone) => (
-    <div
-      key={item.id}
-      draggable
-      onDragStart={() => handleDragStart(item, zone)}
-      onContextMenu={(e) => {
-        e.preventDefault()
-        moveItem(item.id, zone, '-')
-      }}
-      title={item.title}
-      className="w-16 sm:w-20 shrink-0 flex flex-col items-center cursor-grab active:cursor-grabbing select-none"
-    >
-      <div className="w-16 h-16 sm:w-20 sm:h-20 aspect-square rounded-lg overflow-hidden bg-neutral-800 shadow">
-        {item.imageUrl && (
-          <img
-            src={item.imageUrl}
-            alt={item.title}
-            className="w-full h-full object-cover pointer-events-none"
-          />
-        )}
-      </div>
-      <span
-        onClick={() => setExpandedId((prev) => (prev === item.id ? null : item.id))}
-        className={`mt-1 text-[11px] sm:text-xs leading-tight text-neutral-300 text-center w-full cursor-pointer break-words ${
-          expandedId === item.id ? 'line-clamp-none' : 'line-clamp-2'
+  const renderItem = (item, zone) => {
+    const isDragged = dragged?.item.id === item.id
+    const isDropBefore =
+      dropTarget?.zone === zone &&
+      dropTarget?.itemId === item.id &&
+      dropTarget?.position === 'before'
+    const isDropAfter =
+      dropTarget?.zone === zone &&
+      dropTarget?.itemId === item.id &&
+      dropTarget?.position === 'after'
+
+    return (
+      <div
+        key={item.id}
+        draggable
+        onDragStart={() => handleDragStart(item, zone)}
+        onDragEnd={handleDragEnd}
+        onDragOver={(e) => handleItemDragOver(e, item, zone)}
+        onDrop={(e) => handleDropOnItem(e, item, zone)}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          moveItem(item.id, zone, '-')
+        }}
+        title={item.title}
+        className={`relative w-16 sm:w-20 shrink-0 flex flex-col items-center cursor-grab active:cursor-grabbing select-none transition-opacity ${
+          isDragged ? 'opacity-40' : ''
         }`}
       >
-        {item.title}
-      </span>
-    </div>
-  )
+        {isDropBefore && (
+          <div className="absolute -left-1.5 top-0 w-1 h-16 sm:h-20 bg-white/80 rounded-full z-10 pointer-events-none" />
+        )}
+
+        {isDropAfter && (
+          <div className="absolute -right-1.5 top-0 w-1 h-16 sm:h-20 bg-white/80 rounded-full z-10 pointer-events-none" />
+        )}
+
+        <div className="w-16 h-16 sm:w-20 sm:h-20 aspect-square rounded-lg overflow-hidden bg-neutral-800 shadow">
+          {item.imageUrl && (
+            <img
+              src={item.imageUrl}
+              alt={item.title}
+              className="w-full h-full object-cover pointer-events-none select-none"
+            />
+          )}
+        </div>
+        <span
+          onClick={() => setExpandedId((prev) => (prev === item.id ? null : item.id))}
+          className={`mt-1 text-[11px] sm:text-xs leading-tight text-neutral-300 text-center w-full cursor-pointer break-words ${
+            expandedId === item.id ? 'line-clamp-none' : 'line-clamp-2'
+          }`}
+        >
+          {item.title}
+        </span>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white p-3 sm:p-6">
@@ -213,7 +296,7 @@ function TierListPage({ user, onLogout }) {
               <img
                 src={user.photoUrl}
                 alt={user.name}
-                className="w-9 h-9 rounded-full object-cover bg-neutral-800"
+                className="w-9 h-9 rounded-full object-cover bg-neutral-800 select-none"
               />
             ) : (
               <div className="w-9 h-9 rounded-full bg-neutral-800" />
@@ -247,12 +330,15 @@ function TierListPage({ user, onLogout }) {
               {TIERS.filter((tier) => tier.id !== '-' || showMinus).map((tier) => (
                 <div
                   key={tier.id}
-                  onDragOver={handleDragOver}
-                  onDrop={() => handleDrop(tier.id)}
+                  onDragOver={(e) => {
+                    handleDragOver(e)
+                    if (dropTarget) setDropTarget(null)
+                  }}
+                  onDrop={() => handleDropOnZone(tier.id)}
                   className="flex min-h-[84px] sm:min-h-[100px] bg-neutral-900/70"
                 >
                   <div
-                    className={`w-16 sm:w-24 sm:text-2xl shrink-0 flex items-center justify-center text-1xl font-semibold ${tier.colorClass}`}
+                    className={`w-16 sm:w-24 sm:text-2xl shrink-0 flex items-center justify-center text-xl font-semibold ${tier.colorClass}`}
                   >
                     {tier.label}
                   </div>
@@ -267,8 +353,11 @@ function TierListPage({ user, onLogout }) {
             </div>
 
             <div
-              onDragOver={handleDragOver}
-              onDrop={() => handleDrop('remained')}
+              onDragOver={(e) => {
+                handleDragOver(e)
+                if (dropTarget) setDropTarget(null)
+              }}
+              onDrop={() => handleDropOnZone('remained')}
               className="bg-neutral-900 border border-neutral-800 rounded-xl p-3 sm:p-4 min-h-[104px]"
             >
               <p className="text-xs text-neutral-400 mb-3">Нерозподілені</p>
@@ -303,7 +392,7 @@ function TierListPage({ user, onLogout }) {
                       <img
                         src={movieImageUrl}
                         alt="Preview"
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover select-none"
                       />
                     ) : (
                       'Фото'
@@ -381,7 +470,7 @@ function TierListPage({ user, onLogout }) {
                   <img
                     src={img.thumbnail || img.original}
                     alt={img.title}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover select-none"
                     loading="lazy"
                   />
                 </button>
