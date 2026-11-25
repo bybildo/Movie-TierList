@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { searchImages } from './serpapi'
+import AuthorizationPage from './AuthorizationPage'
 
 function App() {
   const [query, setQuery] = useState('')
@@ -22,6 +23,8 @@ function App() {
       setLoading(false)
     }
   }
+
+  return (<AuthorizationPage onAuthorized={(user) => {console.log(user)}} />)
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white p-6">
