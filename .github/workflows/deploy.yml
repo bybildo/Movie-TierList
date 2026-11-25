@@ -25,7 +25,7 @@ jobs:
       - run: npm run build
         env:
           VITE_IMAGE_API: ${{ secrets.VITE_IMAGE_API }}
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: dist
       - id: deployment
