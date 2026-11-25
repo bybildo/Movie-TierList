@@ -9,7 +9,7 @@ const TIERS = [
   { id: 'b', label: 'B', colorClass: 'bg-orange-500' },
   { id: 'c', label: 'C', colorClass: 'bg-red-500' },
   { id: 'd', label: 'D', colorClass: 'bg-red-600' },
-  { id: '-', label: '-', colorClass: 'bg-neutral-700 text-neutral-200' },
+  { id: '-', label: '-', colorClass: 'bg-neutral-700' },
 ]
 
 const EMPTY_TIERS = {
@@ -195,8 +195,8 @@ function TierListPage({ user, onLogout }) {
       </div>
       <span
         onClick={() => setExpandedId((prev) => (prev === item.id ? null : item.id))}
-        className={`mt-1 text-[11px] sm:text-xs text-neutral-300 text-center w-full cursor-pointer ${
-          expandedId === item.id ? 'whitespace-normal break-words' : 'truncate'
+        className={`mt-1 text-[11px] sm:text-xs leading-tight text-neutral-300 text-center w-full cursor-pointer break-words ${
+          expandedId === item.id ? 'line-clamp-none' : 'line-clamp-2'
         }`}
       >
         {item.title}
@@ -252,7 +252,7 @@ function TierListPage({ user, onLogout }) {
                   className="flex min-h-[84px] sm:min-h-[100px] bg-neutral-900/70"
                 >
                   <div
-                    className={`w-16 sm:w-24 shrink-0 flex items-center justify-center text-2xl font-semibold ${tier.colorClass}`}
+                    className={`w-16 sm:w-24 sm:text-2xl shrink-0 flex items-center justify-center text-1xl font-semibold ${tier.colorClass}`}
                   >
                     {tier.label}
                   </div>
