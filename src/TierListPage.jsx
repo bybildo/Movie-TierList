@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore'
+import { addDoc, collection, doc, getDoc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from './firebase'
+import { searchImages } from './serpapi'
 
 const TIERS = [
   { id: 's', label: 'S', colorClass: 'bg-amber-400' },
@@ -27,6 +28,17 @@ function TierListPage({ user, onLogout }) {
   const [showMinus, setShowMinus] = useState(true)
   const [dragged, setDragged] = useState(null)
   const [expandedId, setExpandedId] = useState(null)
+
+  const [movieName, setMovieName] = useState('')
+  const [movieImageUrl, setMovieImageUrl] = useState('')
+  const [addingMovie, setAddingMovie] = useState(false)
+  const [addError, setAddError] = useState('')
+
+  const [showSerpModal, setShowSerpModal] = useState(false)
+  const [serpQuery, setSerpQuery] = useState('')
+  const [serpImages, setSerpImages] = useState([])
+  const [serpLoading, setSerpLoading] = useState(false)
+  const [serpError, setSerpError] = useState('')
 
   useEffect(() => {
     if (!user?.id) return
@@ -117,6 +129,47 @@ function TierListPage({ user, onLogout }) {
     if (!dragged) return
     moveItem(dragged.item.id, dragged.fromZone, toZone)
     setDragged(null)
+  }
+
+  const handleAddMovie = async (e) => {
+    e.preventDefault()
+    if (!movieName.trim() || !movieImageUrl.trim()) return
+
+    setAddingMovie(true)
+    setAddError('')
+    try {
+      const name = movieName.trim()
+      const imageUrl = movieImageUrl.trim()
+      const docRef = await addDoc(collection(db, 'Movies'), {
+        Name: name,
+        ImageUrl: imageUrl,
+        addedBy: user?.name ?? user?.id ?? '',
+        createdAt: serverTimestamp(),
+      })
+      setMovies((prev) => [...prev, { id: docRef.id, title: name, imageUrl }])
+      setMovieName('')
+      setMovieImageUrl('')
+    } catch (err) {
+      setAddError(err.message)
+    } finally {
+      setAddingMovie(false)
+    }
+  }
+
+  const handleSerpSearch = async (e) => {
+    e.preventDefault()
+    if (!serpQuery.trim()) return
+
+    setSerpLoading(true)
+    setSerpError('')
+    try {
+      const results = await searchImages(serpQuery.trim())
+      setSerpImages(results)
+    } catch (err) {
+      setSerpError(err.message)
+    } finally {
+      setSerpLoading(false)
+    }
   }
 
   const renderItem = (item, zone) => (
@@ -223,9 +276,120 @@ function TierListPage({ user, onLogout }) {
                 {remained.map((item) => renderItem(item, 'remained'))}
               </div>
             </div>
+
+            <form
+              onSubmit={handleAddMovie}
+              className="bg-neutral-900 border border-neutral-800 rounded-xl p-3 sm:p-4 space-y-3"
+            >
+              <p className="text-sm font-semibold">Додати фільм</p>
+              <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+                <input
+                  type="text"
+                  value={movieName}
+                  onChange={(e) => setMovieName(e.target.value)}
+                  placeholder="Назва фільму *"
+                  className="flex-1 px-3 py-2 rounded-lg bg-neutral-800 border border-neutral-700 focus:outline-none focus:border-blue-500 text-sm"
+                />
+                <div className="flex-1 flex items-center gap-2">
+                  <input
+                    type="url"
+                    value={movieImageUrl}
+                    onChange={(e) => setMovieImageUrl(e.target.value)}
+                    placeholder="URL фото *"
+                    className="flex-1 px-3 py-2 rounded-lg bg-neutral-800 border border-neutral-700 focus:outline-none focus:border-blue-500 text-sm"
+                  />
+                  <div className="w-10 h-10 rounded-lg bg-neutral-800 border border-neutral-700 overflow-hidden shrink-0 flex items-center justify-center text-[10px] text-neutral-500">
+                    {movieImageUrl ? (
+                      <img
+                        src={movieImageUrl}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      'Фото'
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSerpQuery(movieName.trim())
+                    setShowSerpModal(true)
+                  }}
+                  className="px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-sm font-medium cursor-pointer shrink-0"
+                >
+                  Пошук фото
+                </button>
+                <button
+                  type="submit"
+                  disabled={addingMovie || !movieName.trim() || !movieImageUrl.trim()}
+                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium cursor-pointer shrink-0"
+                >
+                  {addingMovie ? 'Додавання...' : 'Додати'}
+                </button>
+              </div>
+              {addError && <p className="text-xs text-red-400">{addError}</p>}
+            </form>
           </>
         )}
       </div>
+
+      {showSerpModal && (
+        <div className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50">
+          <div className="w-full max-w-2xl bg-neutral-900 border border-neutral-800 rounded-2xl p-4 sm:p-5 space-y-4 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold">Вибір фото (SerpApi)</h2>
+              <button
+                type="button"
+                onClick={() => setShowSerpModal(false)}
+                className="text-neutral-400 hover:text-white text-sm cursor-pointer"
+              >
+                Закрити
+              </button>
+            </div>
+
+            <form onSubmit={handleSerpSearch} className="flex gap-2">
+              <input
+                type="text"
+                value={serpQuery}
+                onChange={(e) => setSerpQuery(e.target.value)}
+                placeholder="Пошук постера..."
+                className="flex-1 px-3 py-2 rounded-lg bg-neutral-800 border border-neutral-700 focus:outline-none focus:border-blue-500 text-sm"
+              />
+              <button
+                type="submit"
+                disabled={serpLoading}
+                className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-sm font-medium cursor-pointer"
+              >
+                {serpLoading ? 'Пошук...' : 'Пошук'}
+              </button>
+            </form>
+
+            {serpError && <p className="text-xs text-red-400">{serpError}</p>}
+
+            <div className="overflow-y-auto no-scrollbar flex flex-wrap gap-2.5">
+              {serpImages.map((img, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    setMovieImageUrl(img.thumbnail || img.original)
+                    setShowSerpModal(false)
+                  }}
+                  className="w-16 h-16 sm:w-20 sm:h-20 aspect-square shrink-0 rounded-lg overflow-hidden bg-neutral-800 border-2 border-transparent hover:border-blue-500 cursor-pointer"
+                >
+                  <img
+                    src={img.thumbnail || img.original}
+                    alt={img.title}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
