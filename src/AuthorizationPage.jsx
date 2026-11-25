@@ -42,7 +42,7 @@ function AuthorizationPage({ onAuthorized }) {
 
   const handleVerifyPattern = async (e) => {
     e.preventDefault()
-    if (!selectedUser || pattern.length < 4) return
+    if (!selectedUser || pattern.length < 1) return
 
     setChecking(true)
     setError('')
@@ -62,7 +62,7 @@ function AuthorizationPage({ onAuthorized }) {
       }
 
       console.log('Вхід виконано успішно:', selectedUser)
-      onAuthorized?.(selectedUser)
+      onAuthorized?.({ ...selectedUser, pattern: pattern.join('-') })
     } catch (err) {
       setError(err.message)
     } finally {

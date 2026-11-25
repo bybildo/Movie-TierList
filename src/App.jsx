@@ -1,68 +1,90 @@
-import { useState } from 'react'
-import { searchImages } from './serpapi'
+import { useEffect, useState } from 'react'
+import {
+  collection,
+  documentId,
+  getDocs,
+  query,
+  where,
+} from 'firebase/firestore'
+import { db } from './firebase'
 import AuthorizationPage from './AuthorizationPage'
+import TierListPage from './TierListPage'
+
+const STORAGE_KEY = 'authSession'
+
+function getSavedSession() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
 
 function App() {
-  const [query, setQuery] = useState('')
-  const [images, setImages] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [currentUser, setCurrentUser] = useState(null)
+  const [checkingSession, setCheckingSession] = useState(() => Boolean(getSavedSession()))
 
-  const handleSearch = async (e) => {
-    e.preventDefault()
-    if (!query.trim()) return
-
-    setLoading(true)
-    setError('')
-    try {
-      const results = await searchImages(query.trim())
-      setImages(results)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
+  useEffect(() => {
+    const saved = getSavedSession()
+    if (!saved?.id || !saved?.pattern) {
+      setCheckingSession(false)
+      return
     }
+
+    const q = query(
+      collection(db, 'users'),
+      where(documentId(), '==', saved.id),
+      where('pattern', '==', saved.pattern),
+    )
+
+    getDocs(q)
+      .then((snapshot) => {
+        if (!snapshot.empty) {
+          const docSnap = snapshot.docs[0]
+          setCurrentUser({
+            id: docSnap.id,
+            name: docSnap.data().name,
+            photoUrl: docSnap.data().photoUrl || '',
+          })
+        } else {
+          localStorage.removeItem(STORAGE_KEY)
+        }
+      })
+      .catch(() => {
+        localStorage.removeItem(STORAGE_KEY)
+      })
+      .finally(() => {
+        setCheckingSession(false)
+      })
+  }, [])
+
+  const handleAuthorized = (user) => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ id: user.id, pattern: user.pattern }),
+    )
+    setCurrentUser({ id: user.id, name: user.name, photoUrl: user.photoUrl })
   }
 
-  return (<AuthorizationPage onAuthorized={(user) => {console.log(user)}} />)
+  const handleLogout = () => {
+    localStorage.removeItem(STORAGE_KEY)
+    setCurrentUser(null)
+  }
 
-  return (
-    <div className="min-h-screen bg-neutral-950 text-white p-6">
-      <form onSubmit={handleSearch} className="max-w-xl mx-auto flex gap-2 mb-6">
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Пошук зображень..."
-          className="flex-1 px-4 py-2 rounded-lg bg-neutral-800 border border-neutral-700 focus:outline-none focus:border-blue-500"
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 font-medium cursor-pointer"
-        >
-          {loading ? 'Пошук...' : 'Пошук'}
-        </button>
-      </form>
-
-      {error && (
-        <p className="text-center text-red-400 mb-4">{error}</p>
-      )}
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
-        {images.map((img, index) => (
-          <div key={index} className="bg-neutral-900 rounded-lg overflow-hidden">
-            <img
-              src={img.thumbnail || img.original}
-              alt={img.title}
-              className="w-full h-40 object-cover"
-              loading="lazy"
-            />
-          </div>
-        ))}
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen bg-neutral-950 text-neutral-400 flex items-center justify-center">
+        Перевірка сесії...
       </div>
-    </div>
-  )
+    )
+  }
+
+  if (!currentUser) {
+    return <AuthorizationPage onAuthorized={handleAuthorized} />
+  }
+
+  return <TierListPage user={currentUser} onLogout={handleLogout} />
 }
 
 export default App
