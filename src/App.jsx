@@ -273,7 +273,7 @@ function App() {
                         className="flex min-h-[76px] sm:min-h-[96px] bg-neutral-900/70"
                       >
                         <div
-                          className={`w-14 sm:w-24 shrink-0 flex items-center justify-center text-lg sm:text-2xl font-semibold select-none ${tier.colorClass}`}
+                          className={`w-14 sm:w-19 shrink-0 flex items-center justify-center text-lg sm:text-2xl font-semibold select-none ${tier.colorClass}`}
                         >
                           {tier.label}
                         </div>

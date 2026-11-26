@@ -338,7 +338,7 @@ function TierListPage({ user, onLogout }) {
                   className="flex min-h-[84px] sm:min-h-[100px] bg-neutral-900/70"
                 >
                   <div
-                    className={`w-16 sm:w-24 sm:text-2xl shrink-0 flex items-center justify-center text-xl font-semibold ${tier.colorClass}`}
+                    className={`w-16 sm:w-20 sm:text-2xl shrink-0 flex items-center justify-center text-xl font-semibold ${tier.colorClass}`}
                   >
                     {tier.label}
                   </div>
